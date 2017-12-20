@@ -1,29 +1,34 @@
-## -*- coding: utf-8 -*-
-##
-## metadata.py
-##
-## Author:   Toke Høiland-Jørgensen (toke@toke.dk)
-## Date:     27 January 2014
-## Copyright (c) 2014-2015, Toke Høiland-Jørgensen
-##
-## This program is free software: you can redistribute it and/or modify
-## it under the terms of the GNU General Public License as published by
-## the Free Software Foundation, either version 3 of the License, or
-## (at your option) any later version.
-##
-## This program is distributed in the hope that it will be useful,
-## but WITHOUT ANY WARRANTY; without even the implied warranty of
-## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-## GNU General Public License for more details.
-##
-## You should have received a copy of the GNU General Public License
-## along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# -*- coding: utf-8 -*-
+#
+# metadata.py
+#
+# Author:   Toke Høiland-Jørgensen (toke@toke.dk)
+# Date:     27 January 2014
+# Copyright (c) 2014-2016, Toke Høiland-Jørgensen
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 
-import sys, os, socket, subprocess, time, re
+import os
+import re
+import subprocess
 
 from flent import util
+from flent.loggers import get_logger
+
+logger = get_logger(__name__)
 
 INTERESTING_OFFLOADS = ['tcp-segmentation-offload',
                         'udp-fragmentation-offload',
@@ -31,7 +36,9 @@ INTERESTING_OFFLOADS = ['tcp-segmentation-offload',
                         'generic-segmentation-offload',
                         'generic-receive-offload']
 
-INTERESTING_SYSCTLS = ['net.ipv4.tcp_autocorking',
+INTERESTING_SYSCTLS = ['net.core.rmem_max',
+                       'net.core.wmem_max',
+                       'net.ipv4.tcp_autocorking',
                        'net.ipv4.tcp_early_retrans',
                        'net.ipv4.tcp_ecn',
                        'net.ipv4.tcp_dsack',
@@ -46,7 +53,21 @@ INTERESTING_SYSCTLS = ['net.ipv4.tcp_autocorking',
                        'net.ipv4.tcp_congestion_control',
                        'net.ipv4.tcp_allowed_congestion_control',
                        'net.ipv4.tcp_available_congestion_control',
+                       'net.ipv4.tcp_mem',
+                       'net.ipv4.tcp_rmem',
+                       'net.ipv4.tcp_wmem',
+                       'net.ipv4.tcp_moderate_rcvbuf',
                        'net.ipv4.tcp_no_metrics_save']
+
+# Modules we try to get versions for
+INTERESTING_MODULES = ['cake',
+                       'ath',
+                       'ath9k',
+                       'ath9k_common',
+                       'ath9k_hw',
+                       'mac80211',
+                       'cfg80211']
+
 
 class CommandRunner(object):
 
@@ -60,9 +81,9 @@ class CommandRunner(object):
         utilities called (such as ip and tc) live here, and those directories
         are not normally in the path (on e.g. Debian)."""
         path = self.env['PATH'].split(':')
-        if not '/sbin' in path:
+        if '/sbin' not in path:
             path.append('/sbin')
-        if not '/usr/sbin' in path:
+        if '/usr/sbin' not in path:
             path.append('/usr/sbin')
         self.env['PATH'] = ":".join(path)
 
@@ -75,25 +96,33 @@ class CommandRunner(object):
         try:
             if self.hostname:
                 command = "ssh %s '%s'" % (self.hostname, command)
-            res = subprocess.check_output(command, universal_newlines=True, shell=True,
-                                          stderr=subprocess.STDOUT, env=self.env)
+            res = subprocess.check_output(command, universal_newlines=True,
+                                          shell=True, stderr=subprocess.STDOUT,
+                                          env=self.env)
             return res.strip()
         except subprocess.CalledProcessError:
             return None
 
+
 get_command_output = CommandRunner()
 
-__all__ = ['record_extended_metadata']
+__all__ = ['record_metadata']
 
-def record_extended_metadata(results, hostnames):
+
+def record_metadata(results, extended, hostnames):
     m = results.meta()
     get_command_output.set_hostname(None)
     m['KERNEL_NAME'] = get_command_output("uname -s")
     m['KERNEL_RELEASE'] = get_command_output("uname -r")
-    m['IP_ADDRS'] = get_ip_addrs()
-    m['GATEWAYS'] = get_gateways()
+    m['MODULE_VERSIONS'] = get_module_versions()
     m['SYSCTLS'] = get_sysctls()
-    m['EGRESS_INFO'] = get_egress_info(target=m['HOST'], ip_version=m['IP_VERSION'])
+    m['EGRESS_INFO'] = get_egress_info(target=m['HOST'],
+                                       ip_version=m['IP_VERSION'],
+                                       extended=extended)
+
+    if extended:
+        m['IP_ADDRS'] = get_ip_addrs()
+        m['GATEWAYS'] = get_gateways()
 
     m['REMOTE_METADATA'] = {}
 
@@ -103,28 +132,41 @@ def record_extended_metadata(results, hostnames):
         m['REMOTE_METADATA'][h]['LOCAL_HOST'] = get_command_output("hostname")
         m['REMOTE_METADATA'][h]['KERNEL_NAME'] = get_command_output("uname -s")
         m['REMOTE_METADATA'][h]['KERNEL_RELEASE'] = get_command_output("uname -r")
-        m['REMOTE_METADATA'][h]['IP_ADDRS'] = get_ip_addrs()
-        m['REMOTE_METADATA'][h]['GATEWAYS'] = get_gateways()
+        m['REMOTE_METADATA'][h]['MODULE_VERSIONS'] = get_module_versions()
         m['REMOTE_METADATA'][h]['SYSCTLS'] = get_sysctls()
-        m['REMOTE_METADATA'][h]['EGRESS_INFO'] = get_egress_info(target=m['HOST'], ip_version=m['IP_VERSION'])
+        m['REMOTE_METADATA'][h]['EGRESS_INFO'] = get_egress_info(
+            target=m['HOST'], ip_version=m['IP_VERSION'], extended=extended)
+
         if m['EGRESS_INFO'] is not None and 'src' in m['EGRESS_INFO']:
-            m['REMOTE_METADATA'][h]['INGRESS_INFO'] = get_egress_info(target=m['EGRESS_INFO']['src'], ip_version=m['IP_VERSION'])
+            m['REMOTE_METADATA'][h]['INGRESS_INFO'] = get_egress_info(
+                target=m['EGRESS_INFO']['src'], ip_version=m['IP_VERSION'],
+                extended=extended)
         else:
             m['REMOTE_METADATA'][h]['INGRESS_INFO'] = None
-        m['REMOTE_METADATA'][h]['EGRESS_INFO'] = get_egress_info(target=m['HOST'], ip_version=m['IP_VERSION'])
+            m['REMOTE_METADATA'][h]['EGRESS_INFO'] = get_egress_info(
+                target=m['HOST'], ip_version=m['IP_VERSION'],
+                extended=extended)
 
-def record_postrun_metadata(results, hostnames):
+        if extended:
+            m['REMOTE_METADATA'][h]['IP_ADDRS'] = get_ip_addrs()
+            m['REMOTE_METADATA'][h]['GATEWAYS'] = get_gateways()
+
+
+def record_postrun_metadata(results, extended, hostnames):
     m = results.meta()
     get_command_output.set_hostname(None)
     if m['EGRESS_INFO'] is not None:
 
-        m['EGRESS_INFO']['tc_stats_post'] = get_tc_stats(m['EGRESS_INFO']['iface'])
+        m['EGRESS_INFO']['tc_stats_post'] = get_tc_stats(
+            m['EGRESS_INFO']['iface'])
 
     for h in hostnames:
         get_command_output.set_hostname(h)
         for i in 'EGRESS_INFO', 'INGRESS_INFO':
             if m['REMOTE_METADATA'][h][i] is not None:
-                m['REMOTE_METADATA'][h][i]['tc_stats_post'] = get_tc_stats(m['REMOTE_METADATA'][h][i]['iface'])
+                m['REMOTE_METADATA'][h][i]['tc_stats_post'] = get_tc_stats(
+                    m['REMOTE_METADATA'][h][i]['iface'])
+
 
 def get_ip_addrs(iface=None):
     """Try to get IP addresses associated to this machine. Uses iproute2 if available,
@@ -149,9 +191,9 @@ def get_ip_addrs(iface=None):
         iface = None
         addrs = []
         for l in lines:
-            # Both ifconfig and iproute2 emit addresses on lines starting with the address
-            # identifier, and fields are whitespace-separated. Look for that and parse
-            # accordingly.
+            # Both ifconfig and iproute2 emit addresses on lines starting with
+            # the address identifier, and fields are whitespace-separated. Look
+            # for that and parse accordingly.
             m = iface_re.match(l)
             if m is not None:
                 if iface and addrs:
@@ -160,15 +202,16 @@ def get_ip_addrs(iface=None):
                 addrs = []
             parts = l.strip().split()
             if parts and parts[0] in ('inet', 'inet6'):
-                a =  parts[1]
-                if '/' in a: # iproute2 adds subnet qualification; strip that out
+                a = parts[1]
+                if '/' in a:  # iproute2 adds subnet qualification; strip that
                     a = a[:a.index('/')]
-                if '%' in a: # BSD may add interface qualification; strip that out
+                if '%' in a:  # BSD may add interface qualification; strip that
                     a = a[:a.index('%')]
                 addrs.append(a)
         if addrs and iface:
             addresses[iface] = addrs
     return addresses or None
+
 
 def get_link_params(iface):
     link_params = {}
@@ -185,7 +228,17 @@ def get_link_params(iface):
         if m:
             link_params['ether'] = m.group(1)
 
+    output = get_command_output("ethtool %s" % iface)
+    if output is not None:
+        m = re.search("Speed: ([0-9]+Mb/s)", output)
+        if m:
+            link_params['speed'] = m.group(1)
+        m = re.search("Duplex: (\w+)", output)
+        if m:
+            link_params['duplex'] = m.group(1)
+
     return link_params or None
+
 
 def get_offloads(iface):
     offloads = {}
@@ -206,15 +259,15 @@ def get_offloads(iface):
 
 def get_gateways():
     gws = []
-    # Linux netstat only outputs IPv4 data by default, but can be made to output both
-    # if passed both -4 and -6
+    # Linux netstat only outputs IPv4 data by default, but can be made to output
+    # both if passed both -4 and -6
     output = get_command_output("netstat -46nr")
     if output is None:
-        # If that didn't work, maybe netstat doesn't support -4/-6 (e.g. BSD), so try
-        # without
+        # If that didn't work, maybe netstat doesn't support -4/-6 (e.g. BSD),
+        # so try without
         output = get_command_output("netstat -nr")
     if output is not None:
-        output = output.replace("Next Hop", "Next_Hop") # breaks part splitting
+        output = output.replace("Next Hop", "Next_Hop")  # breaks part splitting
         lines = output.splitlines()
         iface_idx = None
 
@@ -223,7 +276,8 @@ def get_gateways():
             if not parts:
                 continue
 
-            # Try to find the column header; should have "Destination" as first word.
+            # Try to find the column header; should have "Destination" as first
+            # word.
             if parts[0] == "Destination":
                 # Linux uses Iface or If as header (for IPv4/6), FreeBSD uses If
                 for n in ("Iface", "Netif", "If"):
@@ -234,7 +288,7 @@ def get_gateways():
                     # The fields may run into each other in some instances; try
                     # to detect this, and if so just assume that the interface
                     # name is the last field (it often is, on Linux).
-                    if iface_idx > len(parts)-1:
+                    if iface_idx > len(parts) - 1:
                         iface_idx = -1
                     gw = {'ip': parts[1], 'iface': parts[iface_idx]}
                     if not gw['iface'].startswith('lo'):
@@ -243,7 +297,8 @@ def get_gateways():
                     gws.append({'ip': parts[1]})
     return gws
 
-def get_egress_info(target, ip_version):
+
+def get_egress_info(target, ip_version, extended):
     route = {}
 
     if target:
@@ -277,9 +332,9 @@ def get_egress_info(target, ip_version):
                 #        0         0         0         0      1500         1         0
 
                 for line in output.splitlines():
-                    if not ":" in line:
+                    if ":" not in line:
                         continue
-                    k,v = [i.strip() for i in line.split(":")]
+                    k, v = [i.strip() for i in line.split(":")]
                     if k == "gateway":
                         route['nexthop'] = v
                     if k == "interface":
@@ -294,10 +349,18 @@ def get_egress_info(target, ip_version):
         route['driver'] = get_driver(route['iface'])
         route['link_params'] = get_link_params(route['iface'])
         route['target'] = ip
-        if not 'nexthop' in route:
+        if 'nexthop' not in route:
             route['nexthop'] = None
 
+    if not extended:
+        for k in 'gateway', 'src', 'nexthop', 'target':
+            if k in route:
+                del route[k]
+        if route['link_params'] and 'ether' in route['link_params']:
+            del route['link_params']['ether']
+
     return route or None
+
 
 def parse_tc(cmd, kind):
     items = []
@@ -326,10 +389,11 @@ def parse_tc(cmd, kind):
                 item['parent'] = parts[4]
                 params = parts[5:]
 
-            # Assume that the remainder of the output line is a set of space delimited
-            # key/value pairs. Some qdiscs (e.g. fq_codel) has a single non-valued parameter
-            # at the end, in which case the length of params will be uneven. In this case an
-            # empty string is added as the parameter "value", to make sure it is included.
+            # Assume that the remainder of the output line is a set of space
+            # delimited key/value pairs. Some qdiscs (e.g. fq_codel) has a
+            # single non-valued parameter at the end, in which case the length
+            # of params will be uneven. In this case an empty string is added as
+            # the parameter "value", to make sure it is included.
             if len(params) % 2 > 0:
                 params.append("")
             item['params'] = dict(zip(params[::2], params[1::2]))
@@ -337,8 +401,10 @@ def parse_tc(cmd, kind):
             items.append(item)
     return items or None
 
+
 def get_qdiscs(iface):
     return parse_tc("tc qdisc show dev %s" % iface, "qdisc")
+
 
 def get_tc_stats(iface):
     output = get_command_output("tc -s qdisc show dev %s" % iface)
@@ -348,7 +414,7 @@ def get_tc_stats(iface):
         # Split out output so we get one list entry for each qdisc -- first line
         # of a qdisc's stats output is non-indented, subsequent lines are
         # indented by spaces.
-        for line in filter(None,output.splitlines()):
+        for line in filter(None, output.splitlines()):
             if line.startswith(" "):
                 item.append(line)
             else:
@@ -359,19 +425,27 @@ def get_tc_stats(iface):
             items.append("\n".join(item))
     return items or None
 
+
 def get_classes(iface):
     return parse_tc("tc class show dev %s" % iface, "class")
 
+
 def get_bql(iface):
     bql = []
-    output = get_command_output('for i in /sys/class/net/%s/queues/tx-*; do [ -d $i/byte_queue_limits ] && echo -n "$(basename $i) " && cat $i/byte_queue_limits/limit_max; done' % iface)
+    output = get_command_output(
+        'for i in /sys/class/net/%s/queues/tx-*; do [ -d $i/byte_queue_limits ] '
+        '&& echo -n "$(basename $i) " && cat $i/byte_queue_limits/limit_max; done'
+        % iface)
     if output is not None:
         bql = dict([i.split() for i in output.splitlines()])
 
     return bql or None
 
+
 def get_driver(iface):
-    return get_command_output("basename $(readlink /sys/class/net/%s/device/driver)" % iface)
+    return get_command_output(
+        "basename $(readlink /sys/class/net/%s/device/driver)" % iface)
+
 
 def get_sysctls():
     sysctls = {}
@@ -382,10 +456,45 @@ def get_sysctls():
             parts = line.split("=")
             if len(parts) != 2:
                 continue
-            k,v = [i.strip() for i in parts]
+            k, v = [i.strip() for i in parts]
             try:
                 sysctls[k] = int(v)
             except ValueError:
                 sysctls[k] = v
 
     return sysctls
+
+
+def get_module_versions():
+    module_versions = {}
+    modules = []
+
+    output = get_command_output("find /sys/module -name .note.gnu.build-id")
+
+    if output is not None:
+        module_files = output.split()
+
+        for f in module_files:
+            if "/sections/" in f:
+                continue
+            m = f.replace("/sys/module/", "").split("/", 1)[0]
+            if m in INTERESTING_MODULES:
+                modules.append((m, f))
+
+    if modules:
+
+        # The hexdump output will be a string of hexadecimal values of the
+        # concatenation of all the .note.gnu.build-id files.
+        #
+        # Each file starts with "040000001400000003000000474e5500" (0x474e550 is
+        # "GNU\0"), so simply split on that to get the data we are interested in.
+        version_strings = get_command_output(
+            "hexdump -ve \"/1 \\\"%02x\\\"\" {}".format(
+                " ".join([m[1] for m in modules])))
+
+        for (m, f), v in zip(modules,
+                             version_strings.split(
+                                 "040000001400000003000000474e5500")[1:]):
+            module_versions[m] = v
+
+    return module_versions

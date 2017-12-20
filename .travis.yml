@@ -1,0 +1,34 @@
+language: python
+script: make test_long
+matrix:
+  exclude:
+    - python: "3.3"
+      env: MATPLOTLIB_VERSION=2.0.*
+    - python: "3.3"
+      env: MATPLOTLIB_VERSION=2.1.*
+  include:
+    - python: "2.7"
+      env: MATPLOTLIB_VERSION=1.1.1
+    - python: "2.7"
+      env: MATPLOTLIB_VERSION=1.2.0
+
+python:
+  - "2.7"
+  - "3.3"
+  - "3.4"
+  - "3.5"
+  - "3.6"
+env:
+  - MATPLOTLIB_VERSION=1.4.3
+  - MATPLOTLIB_VERSION=1.5.*
+  - MATPLOTLIB_VERSION=2.0.*
+  - MATPLOTLIB_VERSION=2.1.*
+install:
+  - pip install mock
+  - pip install matplotlib==${MATPLOTLIB_VERSION}
+notifications:
+  pushover:
+    api_key:
+      secure: NVBdwHfLX60WsmuZGn8r4R/zBqR8t2eo8RYLBowWKMeUQZSY/9Pg7Esl2LrhSp3dktQJrocc656PXYDBI37C+2kj17c+XGtKMFiUvQACBuOc0088+8Riu91XqjExwP8wH0aEDpmKCzUL6/lGMLse2zuonxClflFFjYL9GPzxom4=
+    users:
+      secure: Y4NyGJ+vlqp7N1BhyHwQR4JBsEgEvSLOvRD7xxl/BFjnmABZUvwDpnji2owGO0T+pSMua3gYL90k7FZDgCvHROFsumiA4Qq2O6FsxJPGxyoOHXryJzI6Md3FbR5EnC1LNWb9/RRaoaqLWFEEIJE0DxkZZIy3CsFTqaKpYzb4Uf4=

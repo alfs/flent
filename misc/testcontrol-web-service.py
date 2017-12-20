@@ -1,23 +1,33 @@
-## -*- coding: utf-8 -*-
-##
-## testcontrol-web-service.py
-##
-## Author:   Toke Høiland-Jørgensen (toke@toke.dk)
-## Date:     25 October 2014
-## Copyright (c) 2014-2015, Toke Høiland-Jørgensen
-##
-## This program is free software: you can redistribute it and/or modify
-## it under the terms of the GNU General Public License as published by
-## the Free Software Foundation, either version 3 of the License, or
-## (at your option) any later version.
-##
-## This program is distributed in the hope that it will be useful,
-## but WITHOUT ANY WARRANTY; without even the implied warranty of
-## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-## GNU General Public License for more details.
-##
-## You should have received a copy of the GNU General Public License
-## along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# -*- coding: utf-8 -*-
+#
+# testcontrol-web-service.py
+#
+# Author:   Toke Høiland-Jørgensen (toke@toke.dk)
+# Date:     25 October 2014
+# Copyright (c) 2014-2016, Toke Høiland-Jørgensen
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+from __future__ import absolute_import, division, print_function, unicode_literals
+
+import json
+import os
+import re
+import select
+import shlex
+import subprocess
+import sys
 
 try:
     from BaseHTTPServer import HTTPServer, BaseHTTPRequestHandler
@@ -26,17 +36,17 @@ except ImportError:
     from http.server import HTTPServer, BaseHTTPRequestHandler
     from socketserver import ForkingMixIn
 
-import json, os, sys, time, select, shlex, subprocess, re
-
 tests = [{'name': 'test',
           'args': {'ipver': 'IP version (4 or 6)'},
           'exec': './test-exec.sh ${ipver}'}]
 
-class TestWebServer(ForkingMixIn,HTTPServer):
+
+class TestWebServer(ForkingMixIn, HTTPServer):
     pass
 
+
 class TestWebService(BaseHTTPRequestHandler):
-    _INTERP_REGEX =  re.compile(r"(^|[^$])(\$\{([^}]+)\})")
+    _INTERP_REGEX = re.compile(r"(^|[^$])(\$\{([^}]+)\})")
     _MAX_INTERP = 1000
 
     def respond(self, obj):
@@ -105,10 +115,10 @@ class TestWebService(BaseHTTPRequestHandler):
             m = self._INTERP_REGEX.search(string)
             i += 1
             if i > self._MAX_INTERP:
-                self.send_error(500, "Too many interpolations performed for exec string.")
+                self.send_error(
+                    500, "Too many interpolations performed for exec string.")
                 return None
         return string.replace("$$", "$")
-
 
     def handle_test(self, test, req):
         cmdline = self.interpolate(test['exec'], req)
@@ -128,7 +138,6 @@ class TestWebService(BaseHTTPRequestHandler):
             req = self.parse_input()
             if req:
                 self.handle_test(test, req)
-
 
 
 if __name__ == "__main__":

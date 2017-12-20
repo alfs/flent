@@ -20,6 +20,12 @@
    <layout class="QHBoxLayout" name="horizontalLayout">
     <item>
      <widget class="QTabWidget" name="viewArea">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
       <property name="currentIndex">
        <number>-1</number>
       </property>
@@ -42,7 +48,7 @@
      <x>0</x>
      <y>0</y>
      <width>1142</width>
-     <height>21</height>
+     <height>30</height>
     </rect>
    </property>
    <widget class="QMenu" name="menu_File">
@@ -55,6 +61,8 @@
     <addaction name="actionCloseAll"/>
     <addaction name="actionSavePlot"/>
     <addaction name="separator"/>
+    <addaction name="actionNewTest"/>
+    <addaction name="separator"/>
     <addaction name="actionQuit"/>
    </widget>
    <widget class="QMenu" name="menu_View">
@@ -64,6 +72,8 @@
     <addaction name="actionPlotSelector"/>
     <addaction name="actionMetadata"/>
     <addaction name="actionOpenFiles"/>
+    <addaction name="actionLogEntries"/>
+    <addaction name="actionPlotSettings"/>
     <addaction name="separator"/>
     <addaction name="actionNextTab"/>
     <addaction name="actionPrevTab"/>
@@ -84,23 +94,26 @@
     <property name="title">
      <string>&amp;Settings</string>
     </property>
-    <addaction name="checkZeroY"/>
-    <addaction name="checkInvertY"/>
-    <addaction name="checkDisableLog"/>
+    <addaction name="checkHighlight"/>
+    <addaction name="checkDebugLog"/>
+    <addaction name="checkExceptionLog"/>
+   </widget>
+   <widget class="QMenu" name="menu_Help">
+    <property name="title">
+     <string>&amp;Help</string>
+    </property>
+    <addaction name="actionHelpGUI"/>
+    <addaction name="actionHelpRunning"/>
+    <addaction name="actionHelpTests"/>
     <addaction name="separator"/>
-    <addaction name="checkScaleMode"/>
-    <addaction name="checkSubplotCombine"/>
-    <addaction name="separator"/>
-    <addaction name="checkAnnotation"/>
-    <addaction name="checkTitle"/>
-    <addaction name="checkLegend"/>
-    <addaction name="separator"/>
-    <addaction name="checkFilterLegend"/>
+    <addaction name="actionHelpBug"/>
+    <addaction name="actionHelpAbout"/>
    </widget>
    <addaction name="menu_File"/>
    <addaction name="menu_View"/>
    <addaction name="menu_Settings"/>
    <addaction name="menu_Data"/>
+   <addaction name="menu_Help"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
   <widget class="QDockWidget" name="plotDock">
@@ -108,7 +121,7 @@
     <set>QDockWidget::AllDockWidgetFeatures</set>
    </property>
    <property name="windowTitle">
-    <string>Select plot</string>
+    <string>Sele&amp;ct plot</string>
    </property>
    <attribute name="dockWidgetArea">
     <number>2</number>
@@ -130,26 +143,13 @@
     <bool>false</bool>
    </property>
    <property name="windowTitle">
-    <string>Metadata</string>
+    <string>&amp;Metadata</string>
    </property>
    <attribute name="dockWidgetArea">
     <number>8</number>
    </attribute>
    <widget class="QWidget" name="dockWidgetContents_3">
-    <layout class="QVBoxLayout" name="verticalLayout_2">
-     <item>
-      <widget class="QTreeView" name="metadataView">
-       <property name="mouseTracking">
-        <bool>true</bool>
-       </property>
-       <property name="editTriggers">
-        <set>QAbstractItemView::NoEditTriggers</set>
-       </property>
-       <property name="alternatingRowColors">
-        <bool>true</bool>
-       </property>
-      </widget>
-     </item>
+    <layout class="QVBoxLayout" name="metadataLayout">
      <item>
       <widget class="QPushButton" name="expandButton">
        <property name="text">
@@ -162,7 +162,7 @@
   </widget>
   <widget class="QDockWidget" name="openFilesDock">
    <property name="windowTitle">
-    <string>Open files</string>
+    <string>Ope&amp;n files</string>
    </property>
    <attribute name="dockWidgetArea">
     <number>8</number>
@@ -170,6 +170,24 @@
    <widget class="QWidget" name="dockWidgetContents_2">
     <layout class="QGridLayout" name="gridLayout"/>
    </widget>
+  </widget>
+  <widget class="QDockWidget" name="logEntriesDock">
+   <property name="windowTitle">
+    <string>&amp;Log entries</string>
+   </property>
+   <attribute name="dockWidgetArea">
+    <number>8</number>
+   </attribute>
+   <widget class="QWidget" name="dockWidgetContents_4"/>
+  </widget>
+  <widget class="QDockWidget" name="plotSettingsDock">
+   <property name="windowTitle">
+    <string>Plot settin&amp;gs</string>
+   </property>
+   <attribute name="dockWidgetArea">
+    <number>2</number>
+   </attribute>
+   <widget class="QWidget" name="dockWidgetContents_5"/>
   </widget>
   <action name="actionQuit">
    <property name="text">
@@ -253,7 +271,7 @@
   </action>
   <action name="actionPrevTab">
    <property name="text">
-    <string>P&amp;revious tab</string>
+    <string>Pr&amp;evious tab</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+Shift+Backtab</string>
@@ -304,12 +322,12 @@
     <string>&amp;Invert latency Y-axis</string>
    </property>
   </action>
-  <action name="checkDisableLog">
+  <action name="checkLogScale">
    <property name="checkable">
     <bool>true</bool>
    </property>
    <property name="text">
-    <string>&amp;Disable log scale</string>
+    <string>L&amp;og scale</string>
    </property>
   </action>
   <action name="checkScaleMode">
@@ -376,12 +394,85 @@
     <string>Ctrl+N</string>
    </property>
   </action>
+  <action name="actionNewTest">
+   <property name="text">
+    <string>&amp;Run new test</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+R</string>
+   </property>
+  </action>
+  <action name="checkHighlight">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>&amp;Highlight on hover</string>
+   </property>
+  </action>
+  <action name="actionLogEntries">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>&amp;Log entries</string>
+   </property>
+  </action>
+  <action name="checkDebugLog">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Show &amp;debug log entries</string>
+   </property>
+  </action>
+  <action name="checkExceptionLog">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Show &amp;exception backtraces</string>
+   </property>
+  </action>
+  <action name="actionHelpRunning">
+   <property name="text">
+    <string>&amp;Running Flent</string>
+   </property>
+  </action>
+  <action name="actionHelpTests">
+   <property name="text">
+    <string>The supplied &amp;tests</string>
+   </property>
+  </action>
+  <action name="actionHelpAbout">
+   <property name="text">
+    <string>&amp;About Flent</string>
+   </property>
+  </action>
+  <action name="actionHelpGUI">
+   <property name="text">
+    <string>The Flent &amp;GUI</string>
+   </property>
+  </action>
+  <action name="actionHelpBug">
+   <property name="text">
+    <string>Report a &amp;bug</string>
+   </property>
+  </action>
+  <action name="actionPlotSettings">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Plot &amp;settings</string>
+   </property>
+  </action>
  </widget>
  <resources/>
  <connections>
   <connection>
    <sender>actionQuit</sender>
-   <signal>activated()</signal>
+   <signal>triggered()</signal>
    <receiver>MainWindow</receiver>
    <slot>close()</slot>
    <hints>
@@ -428,22 +519,6 @@
    </hints>
   </connection>
   <connection>
-   <sender>expandButton</sender>
-   <signal>clicked()</signal>
-   <receiver>metadataView</receiver>
-   <slot>expandAll()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>1007</x>
-     <y>738</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>1007</x>
-     <y>570</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
    <sender>actionOpenFiles</sender>
    <signal>toggled(bool)</signal>
    <receiver>openFilesDock</receiver>
@@ -456,6 +531,38 @@
     <hint type="destinationlabel">
      <x>1033</x>
      <y>627</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>actionLogEntries</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>logEntriesDock</receiver>
+   <slot>setVisible(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>1093</x>
+     <y>711</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>actionPlotSettings</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>plotSettingsDock</receiver>
+   <slot>setVisible(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>1005</x>
+     <y>645</y>
     </hint>
    </hints>
   </connection>

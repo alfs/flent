@@ -1,6 +1,6 @@
 .\" Man page generated from reStructuredText.
 .
-.TH "FLENT" "1" "July 29, 2015" "0.12.2-git" "Flent: The FLExible Network Tester"
+.TH "FLENT" "1" "November 15, 2017" "1.1.1-git" "Flent: The FLExible Network Tester"
 .SH NAME
 flent \- Flent: The FLExible Network Tester
 .
@@ -48,7 +48,7 @@ CDF plots of (e.g.) ping times.
 .sp
 Plots can be output to the formats supported by matplotlib by specifying
 the output filename with \fB\-o\fP \fIoutput.{png,ps,pdf,svg}\fP\&. If no output
-file is specified, the plot is diplayed using matplotlib’s interactive
+file is specified, the plot is displayed using matplotlib’s interactive
 plot browser, which also allows saving of the output (in .png format).
 .SS Requirements
 .sp
@@ -58,10 +58,9 @@ Flent runs on Python, versions 2.7+ and 3.3+. Plotting requires a functional
 suitably configured \fBmatplotlib\fP) is required.
 .sp
 Most tests employ the netperf benchmarking tool to run the tests. Version 2.6 or
-higher is required, and netperf must be compiled with the
-\fB\-\-enable\-demo\fP option passed to \fB\&./configure\fP\&. Some tests use
-iperf in addition to, or instead of netperf. Both tools must be available in the
-\fBPATH\fP\&.
+higher is required, and netperf must be compiled with the \fB\-\-enable\-demo\fP
+option passed to \fB\&./configure\fP\&. Some tests use iperf in addition to, or
+instead of netperf. Both tools must be available in the \fBPATH\fP\&.
 .sp
 For ICMP ping measurements, the version of ping employed must support output
 timestamping (the \-D parameter to GNU ping). This is not supported by the BSD
@@ -86,7 +85,7 @@ and \fI\%\-H\fP switches can be used to explicitly specify the interpretation
 of an argument.
 .SS Invocation
 .sp
-\fBflent\fP [\fIoptions\fP] \fI<host|test|input file\fP ...\fI>\fP
+\fBflent\fP [\fIoptions\fP] \fI<host|test|input file\fP …\fI>\fP
 .SS General options
 .INDENT 0.0
 .TP
@@ -154,7 +153,8 @@ commands. This option can be specified multiple times and implies
 .B \-\-gui
 Run the flent GUI. All other options are used as defaults in the GUI, but can
 be changed once it is running. The GUI can also be started by running the
-\fBflent\-gui\fP binary. For more information on the GUI, see \fBgui\fP\&.
+\fBflent\-gui\fP binary. For more information on the GUI, see the
+gui section.
 .UNINDENT
 .INDENT 0.0
 .TP
@@ -202,8 +202,23 @@ Dry batch run. Prints what would be done, but doesn’t actually run any tests.
 .UNINDENT
 .INDENT 0.0
 .TP
+.B \-\-batch\-verbose
+Be verbose during batch run: Print all commands executed.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \-\-batch\-no\-shuffle
+Do not randomise the order of test runs within each batch.
+.UNINDENT
+.INDENT 0.0
+.TP
 .B \-\-batch\-repetitions=REPETITIONS
 Shorthand for \fI\%\-\-batch\-override\fP \fB\(aqrepetitions=REPETITIONS’\fP\&.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \-\-batch\-title=TITLE
+Shorthand for \fI\%\-\-batch\-override\fP \fB\(aqbatch_title=TITLE’\fP\&.
 .UNINDENT
 .INDENT 0.0
 .TP
@@ -219,8 +234,8 @@ tests for which data files already exist will be skipped on this run. If the
 rest of the batch invocation is different from the one being resumed, results
 may not be what you want.
 .sp
-There\(aqs a check to ensure that the generated output path is a subdirectory of
-the resume directory, and the whole run will be aborted if it isn\(aqt.
+There’s a check to ensure that the generated output path is a subdirectory of
+the resume directory, and the whole run will be aborted if it isn’t.
 .UNINDENT
 .SS Test configuration options
 .sp
@@ -239,6 +254,24 @@ auto\-detection between input files, hostnames and test names).
 .TP
 .B \-\-local\-bind=IP
 Local hostname or IP address to bind to (for test tools that support this).
+Can be specified multiple times for tests that connect to more than one host;
+if it is, it must be specified as many times as there are hosts.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \-\-remote\-host=idx=HOSTNAME
+A remote hostname to connect to when starting a test. The idx is the runner
+index, which is assigned sequentially to each \fIrunner\fP (and so it is \fInot\fP
+the same as the sequence of hostnames). Look for the ‘IDX’ key in SERIES_META
+for a test get the idx used here, but note that the idx assignment depends on
+the exact arguments to the test.
+.sp
+This works by simply prepending ‘ssh HOSTNAME’ to the runner command, so it
+relies on the same binaries being in the same places on both machines, and
+won’t work for all runners.
+.sp
+This option can be specified multiple times to have multiple runners run on
+remote hosts.
 .UNINDENT
 .INDENT 0.0
 .TP
@@ -281,10 +314,14 @@ latency above the default value. Set to 0 to disable.
 .TP
 .B \-\-test\-parameter=key=value
 Arbitrary test parameter in key=value format. Key will be case folded to
-lower case. Some test configurations may alter behaviour based on values
-passed as test parameters. Additionally, the values are stored with the
-results metadata, and so can be used for arbitrary resultset categorisation.
-Can be specified multiple times.
+lower case. The values are stored with the results metadata, and so can be
+used for storing arbitrary information relevant for a particular test run.
+.sp
+In addition to serving as simple metadata, the test parameters can also
+affect the behaviour of some test configurations. See the tests
+section for information on these.
+.sp
+This option can be specified multiple times to set multiple test parameters.
 .UNINDENT
 .INDENT 0.0
 .TP
@@ -294,41 +331,66 @@ Switch upstream and downstream directions for data transfer. This means that
 \fBTCP_MAERTS\fP and \fBTCP_STREAM\fP parameters, so only works for tests that employ
 these as their data transfer, and only for the TCP streams.
 .UNINDENT
+.INDENT 0.0
+.TP
+.B \-\-socket\-stats
+Parse socket stats during test. This will capture and parse socket
+statistics for all TCP upload flows during a test, adding TCP cwnd and RTT
+values to the test data. Requires the ‘ss’ utility to be present on the
+system, and can fail if there are too many simultaneous upload flows; which
+is why this option is not enabled by default.
+.UNINDENT
 .SS Plot configuration options
 .sp
 These options are used to configure the appearance of plot output and only make
 sense combined with \fI\%\-f\fP \fIplot\fP\&.
 .INDENT 0.0
 .TP
-.B \-z, \-\-zero\-y
-Always start y axis of plot at zero, instead of autoscaling the axis (also
-disables log scales). Autoscaling is still enabled for the upper bound.
+.B \-\-label\-x=LABEL
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \-\-label\-y=LABEL
+Override the figure axis labels. Can be specified twice, corresponding to
+figures with multiple axes.
 .UNINDENT
 .INDENT 0.0
 .TP
 .B \-I, \-\-invert\-latency\-y
-Invert the y\-axis for latency data series (making plots show ’better values
-upwards’).
+Invert latency data series axis (typically the Y\-axis), making plots show
+’better’ values upwards.
 .UNINDENT
 .INDENT 0.0
 .TP
-.B \-\-disable\-log
-Disable log scales on plots.
+.B \-z, \-\-zero\-y
+Always start Y axis of plot at zero, instead of autoscaling the axis.
+Autoscaling is still enabled for the upper bound. This also disables log
+scale if enabled.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \-\-log\-scale={log2,log10}
+Use the specified logarithmic scale on plots.
 .UNINDENT
 .INDENT 0.0
 .TP
 .B \-\-norm\-factor=FACTOR
-Factor to normalise data by. I.e. divide all data points by this value. Can
-be specified multiple times, in which case each value corresponds to a data
+Data normalisation factor. Divide all data points by this value. Can be
+specified multiple times, in which case each value corresponds to a data
 series.
 .UNINDENT
 .INDENT 0.0
 .TP
-.B \-\-scale\-data=SCALE_DATA
-Additional data files to consider when scaling the plot axes (for plotting
-several plots with identical axes). Note, this displays only the first data
-set, but with axis scaling taking into account the additional data sets. Can
-be supplied multiple times; see also \fI\%\-\-scale\-mode\fP\&.
+.B \-\-bounds\-x=BOUNDS
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \-\-bounds\-y=BOUNDS
+Specify bounds of the plot axes. If specifying one number, that will become
+the upper bound. Specify two numbers separated by a comma to specify both
+upper and lower bounds. To specify just the lower bound, add a comma
+afterwards. Can be specified twice, corresponding to figures with multiple
+axes.
 .UNINDENT
 .INDENT 0.0
 .TP
@@ -361,6 +423,12 @@ plot types, and only works when \fI\%\-\-scale\-mode\fP is disabled.
 .UNINDENT
 .INDENT 0.0
 .TP
+.B \-\-skip\-missing\-series
+Skip missing series entirely from bar plots, instead of leaving an empty
+space for it.
+.UNINDENT
+.INDENT 0.0
+.TP
 .B \-\-no\-print\-n
 Do not print the number of data points on combined plots. When using plot
 types that combines results from several test runs, the number of data series
@@ -371,6 +439,11 @@ for X data series. This option turns that off.
 .TP
 .B \-\-no\-annotation
 Exclude annotation with hostnames, time and test length from plots.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \-\-figure\-note=NOTE, \-\-fig\-note=NOTE
+Add a note (arbitrary text) to the bottom\-left of the figure.
 .UNINDENT
 .INDENT 0.0
 .TP
@@ -389,6 +462,11 @@ aggregate plot from several data series. When this parameter is specified,
 .UNINDENT
 .INDENT 0.0
 .TP
+.B \-\-no\-labels
+Hides tick labels from box and bar plots.
+.UNINDENT
+.INDENT 0.0
+.TP
 .B \-\-no\-markers
 Don’t use line markers to differentiate data series on plots.
 .UNINDENT
@@ -399,9 +477,45 @@ Exclude legend from plots.
 .UNINDENT
 .INDENT 0.0
 .TP
+.B \-\-horizontal\-legend
+Place a horizontal legend below the plot instead of a vertical one next to
+it. Doesn’t always work well if there are too many items in the legend.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \-\-legend\-title=LEGEND_TITLE
+Override legend title on plot.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \-\-legend\-placement=LEGEND_PLACEMENT
+Control legend placement. Enabling this option will place the legend inside
+the plot at the specified location. Can be one of ‘best’, ‘upper right’,
+‘upper left’, ‘lower left’, ‘lower right’, ‘right’, ‘center left’, ‘center
+right’, ‘lower center’, ‘upper center’ or ‘center’.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \-\-legend\-columns=LEGEND_COLUMNS
+.TP
+.B Set the number of columns in the legend.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \-\-reverse\-legend
+Reverse the order of items in the legend. This can be useful to make the
+legend order match the data series in some cases.
+.UNINDENT
+.INDENT 0.0
+.TP
 .B \-\-filter\-legend
 Filter legend labels by removing the longest common substring from all
-entries. This is not particularly smart, so should be used with care.
+entries. This is not particularly smart, so use with care.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \-\-replace\-legend=src=dest
+Replace ‘src’ with ‘dst’ in legends. Can be specified multiple times.
 .UNINDENT
 .INDENT 0.0
 .TP
@@ -409,6 +523,61 @@ entries. This is not particularly smart, so should be used with care.
 Filter the plot legend by the supplied regular expression. Note that for
 combining several plot results, the regular expression is also applied before
 the grouping logic, meaning that a too wide filter can mess up the grouping.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \-\-override\-label=LABEL
+Override dataset label. Can be specified multiple times when multiple
+datasets are being plotted, in which case the order of labels corresponds to
+the order of datasets.
+.sp
+Like \fI\%\-\-override\-title\fP, this is applied \fIat the time of plotting\fP\&.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \-\-filter\-series=SERIES
+Filter out specified series from plot. Can be specified multiple times.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \-\-split\-group=LABEL
+Split data sets into groups when creating box plots. Specify this option
+multiple times to define the new groups; the value of each option is the
+group name.
+.sp
+Say you’re plotting nine datasets which are really testing two variables with
+three values each. In this case, it can be useful to have the box plot of the
+results be split into three parts (corresponding to the values of one
+variable) with each three boxes in each of them (corresponding to the values
+of the second variable). This option makes this possible; simply specify it
+three times with the labels to be used for the three groups.
+.sp
+A constraint on this option is that the number of datasets being plotted must
+be divisible by the number of groups.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \-\-colours=COLOURS
+Comma\-separated list of colours to be used for the plot colour cycle. Can be
+specified in any format understood by matplotlib (including HTML hex values
+prefixed with a #).
+.sp
+Yes, this option uses British spelling. No, American spelling is not
+supported.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \-\-override\-group\-by=GROUP
+Override the \fBgroup_by\fP setting for combination plots. This is useful to,
+for instance, switch to splitting up combined data sets by batch run instead
+of by file name.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \-\-combine\-save\-dir=DIRNAME
+When doing a combination plot save the intermediate data to \fBDIRNAME\fP\&. This
+can then be used for subsequent plotting to avoid having to load all the
+source data files again on each plot.
 .UNINDENT
 .INDENT 0.0
 .TP
@@ -429,9 +598,31 @@ Figure DPI. Used when saving plots to raster format files.
 .UNINDENT
 .INDENT 0.0
 .TP
+.B \-\-fallback\-layout
+Use the fallback layout engine (tight_layout built in to matplotlib). Use
+this if text is cut off on saved figures. The downside to the fallback engine
+is that the size of the figure (as specified by \fI\%\-\-figure\-width\fP and
+\fI\%\-\-figure\-height\fP) is no longer kept constant.)
+.UNINDENT
+.INDENT 0.0
+.TP
 .B \-\-no\-matplotlibrc
 Don’t load included matplotlibrc values. Use this if autodetection of custom
 matplotlibrc fails and flent is inadvertently overriding rc values.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \-\-no\-hover\-highlight
+Don’t highlight data series on hover in interactive plot views. Use this if
+redrawing is too slow, or the highlighting is undesired for other reasons.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \-\-scale\-data=SCALE_DATA
+Additional data files to consider when scaling the plot axes (for plotting
+several plots with identical axes). Note, this displays only the first data
+set, but with axis scaling taking into account the additional data sets. Can
+be supplied multiple times; see also \fI\%\-\-scale\-mode\fP\&.
 .UNINDENT
 .SS Test tool\-related options
 .INDENT 0.0
@@ -447,6 +638,10 @@ tests, this option is passed to Netperf to control where to point the control
 connection. This is useful to, for instance, to run the control server
 communication over a separate control network so as to not interfere with
 test traffic.
+.sp
+There is also a per\-flow setting for this for tests that connect to multiple
+hosts; see the \fIcontrol_hosts\fP test parameter in tests\&. If both are
+set, the per\-flow setting takes precedence for those tests that use it.
 .UNINDENT
 .INDENT 0.0
 .TP
@@ -486,7 +681,7 @@ hostname.
 .TP
 .B \-\-http\-getter\-dns\-servers=DNS_SERVERS
 DNS servers to use for http\-getter lookups. Format is
-host[:port][,host[:port]]... This option will only work if libcurl supports
+host[:port][,host[:port]]… This option will only work if libcurl supports
 it (needs to be built with the ares resolver). Default is none (use the
 system resolver).
 .UNINDENT
@@ -523,12 +718,27 @@ Show Flent version information and exit.
 .UNINDENT
 .INDENT 0.0
 .TP
+.B \-v, \-\-verbose
+Enable verbose logging to console.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \-q, \-\-quiet
+Disable normal logging to console (and only log warnings and errors).
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \-\-debug\-error
+Print full exception backtraces to console.
+.UNINDENT
+.INDENT 0.0
+.TP
 .B \-h, \-\-help
 Show usage help message and exit.
 .UNINDENT
 .SS Signals
 .sp
-Flent will abort what it is currently doing on receiving a \fBSIGINT\fP \-\- this
+Flent will abort what it is currently doing on receiving a \fBSIGINT\fP – this
 includes killing all runners, cleaning up temporary files and shutting down as
 gracefully as possible. Runners are killed with \fBSIGTERM\fP in this mode, and
 their output is discarded. If a batch run is in progress, the current test will
@@ -572,6 +782,150 @@ TCP flow can be sufficient to saturate the link.
 This test runs \fIiperf\fP configured to emit 100Mbps of UDP packets targeted at the
 test host, while measuring RTT using ICMP ping. It is useful for observing
 latency in the face of a completely unresponsive packet stream.
+.SS Test parameters
+.sp
+Some test parameters (set with \fB\-\-test\-parameter\fP) affect the way tests
+behave. These are:
+.INDENT 0.0
+.TP
+.B upload_streams
+.UNINDENT
+.INDENT 0.0
+.TP
+.B download_streams
+These set the number of upload or download streams for the \fBtcp_nup\fP,
+\fBtcp_ndown\fP and \fBrrul_be_nflows\fP tests. If set to the special value
+\fBnum_cpus\fP the number of streams will be set to the number of CPUs on the
+system (if this information is available).
+.UNINDENT
+.INDENT 0.0
+.TP
+.B tcp_cong_control
+Set the congestion control used for TCP flows, for platforms that supports
+setting it. This can be specified as a simple string to set the same value
+for upstream and downstream, or two comma\-separated values to set it
+separately for the upstream and downstream directions. On Linux, any value in
+the sysctl \fBnet.ipv4.tcp_allowed_congestion_control\fP can be used.
+.sp
+If a congestion control is specified that is not available on the system
+running the test, setting it will simply fail. In addition, some tests
+override the congestion control for one or more flows. The actual congestion
+control used is stored in the \fBCONG_CONTROL\fP per\-test metadata field.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B udp_bandwidth
+This sets the bandwidth of each UDP stream in the \fBudp_*\fP tests. The option
+is passed to \fBiperf\fP so can be in any syntax the iperf understands (e.g.
+\fB20M\fP for 20 Mbps).
+.UNINDENT
+.INDENT 0.0
+.TP
+.B burst_length
+.UNINDENT
+.INDENT 0.0
+.TP
+.B burst_ports
+.UNINDENT
+.INDENT 0.0
+.TP
+.B burst_psize
+.UNINDENT
+.INDENT 0.0
+.TP
+.B burst_tos
+These set the length, number of ports to use, packet size and TOS value for
+the packet bursts generated in the \fBburst*\fP tests.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B cpu_stats_hosts
+.UNINDENT
+.INDENT 0.0
+.TP
+.B netstat_hosts
+.UNINDENT
+.INDENT 0.0
+.TP
+.B qdisc_stats_hosts
+.UNINDENT
+.INDENT 0.0
+.TP
+.B wifi_stats_hosts
+These set hostnames to gather statistics from from during the test. The
+hostnames are passed to SSH, so can be anything understood by SSH (including
+using \fBusername@host\fP syntax, or using hosts defined in \fB~/.ssh/config\fP).
+This will attempt to run remote commands on these hosts to gather the
+required statistics, so passwordless login has to be enabled for. Multiple
+hostnames can be specified, separated by commas.
+.sp
+CPU stats and netstat output is global to the machine being connected to. The
+qdisc and WiFi stats need extra parameters to work. These are
+\fBqdisc_stats_interfaces\fP, \fBwifi_stats_interfaces\fP and
+\fBwifi_stats_stations\fP\&. The two former specify which interfaces to gather
+statistics from. These are paired with the hostnames, and so must contain the
+same number of elements (also comma\-separated) as the \fB_hosts\fP variables.
+To specify multiple interfaces on the same host, duplicate the hostname. The
+\fBwifi_stats_stations\fP parameter specifies MAC addresses of stations to
+gather statistics for. This list is the same for all hosts, but only stations
+present in debugfs on each host are actually captured.
+.sp
+The qdisc stats gather statistics output from \fBtc \-s\fP, while the WiFi stats
+gather statistics from debugfs. These are gathered by looping in a shell
+script; however, for better performance, the \fBtc_iterate\fP and
+\fBwifistats_iterate\fP programmes available in the \fBmisc/\fP directory of the
+source code tarball can be installed. On low\-powered systems this can be
+critical to get correct statistics. The helper programmes are packaged for
+LEDE/OpenWrt in the \fBflent\-tools\fP package.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B ping_hosts
+.UNINDENT
+.INDENT 0.0
+.TP
+.B ping_local_binds
+These are used to define one or more extra host names that will receive a
+ping flow while a test is run. The \fBping_hosts\fP variable simply specifies
+hostnames to ping (several can be specified by separating them with commas).
+The \fBping_local_binds\fP variable sets local IP address(es) to bind to for
+the extra ping flows. If specified, it must contain the same number of local
+addresses as the number of ping hosts. The same local address can be
+specified multiple times, however.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B voip_host
+.UNINDENT
+.INDENT 0.0
+.TP
+.B voip_local_bind
+.UNINDENT
+.INDENT 0.0
+.TP
+.B voip_control_host
+Similar to the ping variants above, these parameters specify a hostname that
+will receive a VoIP test. However, unlike the ping parameters, only one
+hostname can be specified for VoIP tests, and that end\-host needs to have
+D\-ITG (and the control server) running.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B control_hosts
+Hostnames to use for the control connections for the \fBrtt_fair*\fP tests.
+Comma\-separated. If specified, it must contain as many hostnames as the
+number of target hostnames specified for the test.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B markings
+Flow markings to use for each of the flows in the \fBrtt_fair*\fP tests.
+Comma\-separated values of markings understood by Netperf (such as “CS0”).
+Only supports setting the same marking on both the upstream and downstream
+packets of each flow (so no “CS0,CS0” setting as can be used for Netperf). If
+not set, defaults to CS0 (best effort). If set, each value corresponds to a
+flow, and any extra flows will be set to CS0.
+.UNINDENT
 .SH THE FLENT GUI
 .sp
 Flent comes equipped with a GUI to browse and plot previously captured datasets.
@@ -611,30 +965,24 @@ Flent supports reading batch files to automate running several tests and
 do setup/teardown of test environment etc. This greatly aids
 reproducibility of tests.
 .sp
-The batch file format is based on the standard .ini file format, with
-sections being split into three namespaces: Commands, starting with
-Command::, batches, starting with Batch::, and arguments, starting with
-Arg::. Briefly, a batch is the entity that will be run, commands can be
-run before or after each batch iteration, and arguments allows
-parameterising batches.
-.INDENT 0.0
-.INDENT 3.5
-.SS Todo
+The batch file is parsed as an ini file, and can have three types of sections:
+batches, commands and args. Each section also has a name; type and name are
+separated with two colons. ‘Batches’ are named tests that can be selected from
+the command line, ‘commands’ are system commands to be run before or after each
+test run, and ‘args’ are used in the looping mechanism (which allows repeating
+tests multiple times with different parameters).
 .sp
-Expand this section; for now, try looking at the \fBbatchfile.example\fP
-file supplied with the source code, and try to work things out from there :).
-.UNINDENT
-.UNINDENT
+Variables in sections control the operation of Flent and can be modified in
+several ways: Sections of the same type can inherit from each other and the
+variables in an ‘arg’ section will be interpolated into the batch definition on
+each iteration of a loop. In addition, variable contents can be substituted into
+other variables by using the ${varname} syntax. These three operations are
+resolved in this order (inheritance, arg interpolation and variable
+substitution).
+.sp
+An annotated example batchfile is distributed with the source code, and is by
+default installed to \fB/usr/share/doc/flent/batchfile.example\fP\&.
 .SH THE DATA FILE FORMAT
-.INDENT 0.0
-.INDENT 3.5
-.SH TODO
-.INDENT 0.0
-.IP \(bu 2
-Update metadata keys from source code.
-.UNINDENT
-.UNINDENT
-.UNINDENT
 .sp
 The aggregated test data is saved in a file called
 \fB<test_name>\-<date>.<title>.flent.gz\fP (the title part is omitted if no title is
@@ -736,11 +1084,6 @@ Version of Flent that generated the data file.
 IP version used to run test (as specified by command line
 parameters, or auto\-detected from \fBgetaddrinfo()\fP if unspecified).
 .UNINDENT
-.SS Extended metadata
-.sp
-If the \fB\-\-extended\-metadata\fP switch is turned on, the following
-additional values are collected and stored (to the extent they are available
-from the platform):
 .INDENT 0.0
 .TP
 .B KERNEL_NAME
@@ -753,26 +1096,27 @@ The kernel release as reported by \fBuname \-r\fP\&.
 .UNINDENT
 .INDENT 0.0
 .TP
-.B IP_ADDRS
-IP addresses assigned to the machine running flent.
+.B MODULE_VERSIONS
+The sha1sum of certain interesting Linux kernel modules, if
+available. Can be used to match test data to specific code versions,
+if the kernel build is instrumented to, e.g., set the build ID to a
+git revision.
 .UNINDENT
 .INDENT 0.0
 .TP
-.B GATEWAYS
-IP addresses of all detected default gateways on the system, and the
-interfaces they are reachable through. Only available if the
-\fBnetstat\fP binary is present on the system.
+.B SYSCTLS
+The values of several networking\-related sysctls on the host (if
+available; Linux only).
 .UNINDENT
 .INDENT 0.0
 .TP
 .B EGRESS_INFO
-Egress interface, its qdisc, offload, driver and BQL configuration,
-and (if applicable) the IP address of the next\-hop router used to
-reach the test target. The egress interface and next\-hop router
-requires that the \fBip\fP binary is present on Linux, but can
-be extracted from \fBroute\fP on BSD. Qdisc information
-requires the \fBtc\fP binary to be present, and offload
-information requires \fBethtool\fP\&.
+Interface name, qdisc, offload, driver and BQL configuration of the
+interface used to reach the test target. This requires that the
+\fBip\fP binary is present on Linux, but can be extracted from
+\fBroute\fP on BSD. Qdisc information requires the
+\fBtc\fP binary to be present, and offload information requires
+\fBethtool\fP\&.
 .sp
 If the \fB\-\-remote\-metadata\fP is used, the extended metadata
 info is gathered for each of the hostnames specified. This is
@@ -790,6 +1134,30 @@ path from the router (which is ingress from the point of view of the
 host running flent). If the host being queried for remote metadata
 is off the path, the contents of \fBINGRESS_INFO\fP will
 probably be the same as that of \fI\%EGRESS_INFO\fP .
+.UNINDENT
+.SS Extended metadata
+.sp
+If the \fB\-\-extended\-metadata\fP switch is turned on, the following
+additional values are collected and stored (to the extent they are available
+from the platform):
+.INDENT 0.0
+.TP
+.B IP_ADDRS
+IP addresses assigned to the machine running flent.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B GATEWAYS
+IP addresses of all detected default gateways on the system, and the
+interfaces they are reachable through. Only available if the
+\fBnetstat\fP binary is present on the system.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B EGRESS_INFO
+In the \fI\%EGRESS_INFO\fP key, the IP address of the next\-hop
+router and the interface MAC address are added if extended metadata
+is enabled.
 .UNINDENT
 .SH OUTPUT FORMATS
 .sp
@@ -861,7 +1229,7 @@ and refuse to run if it is not available, unless explicitly told otherwise.
 Under some conditions (such as severe bufferbloat), the UDP RTT measurements
 done by netperf can experience packet loss to the extent that the test aborts
 completely, which can cause missing data points for some measurement series.
-The \-\-socket\-timeout feature can alleviate this, but requires a recent SVN
+The –socket\-timeout feature can alleviate this, but requires a recent SVN
 version of netperf to work. Flent tries to detect if netperf supports this
 option and enables it for the UDP measurements if it does.
 .sp
@@ -871,6 +1239,6 @@ Probably many other bugs. Please report any found to
 .SH AUTHOR
 Toke Høiland-Jørgensen
 .SH COPYRIGHT
-2012-2015, Toke Høiland-Jørgensen
+2012-2017, Toke Høiland-Jørgensen and contributors. Source code is GPLv3. Documentation is CC-BY-SA
 .\" Generated by docutils manpage writer.
 .

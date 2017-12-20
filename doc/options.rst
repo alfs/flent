@@ -78,7 +78,8 @@ General options
 
    Run the flent GUI. All other options are used as defaults in the GUI, but can
    be changed once it is running. The GUI can also be started by running the
-   :command:`flent-gui` binary. For more information on the GUI, see :doc:`gui`.
+   :command:`flent-gui` binary. For more information on the GUI, see the
+   :doc:`gui` section.
 
 .. option:: --new-gui-instance
 
@@ -118,9 +119,21 @@ General options
 
    Dry batch run. Prints what would be done, but doesn’t actually run any tests.
 
+.. option:: --batch-verbose
+
+   Be verbose during batch run: Print all commands executed.
+
+.. option:: --batch-no-shuffle
+
+   Do not randomise the order of test runs within each batch.
+
 .. option:: --batch-repetitions=REPETITIONS
 
    Shorthand for :option:`--batch-override` ``'repetitions=REPETITIONS’``.
+
+.. option:: --batch-title=TITLE
+
+   Shorthand for :option:`--batch-override` ``'batch_title=TITLE’``.
 
 .. option:: --batch-resume=DIR
 
@@ -155,6 +168,23 @@ parsing input files.
 .. option:: --local-bind=IP
 
    Local hostname or IP address to bind to (for test tools that support this).
+   Can be specified multiple times for tests that connect to more than one host;
+   if it is, it must be specified as many times as there are hosts.
+
+.. option:: --remote-host=idx=HOSTNAME
+
+   A remote hostname to connect to when starting a test. The idx is the runner
+   index, which is assigned sequentially to each *runner* (and so it is *not*
+   the same as the sequence of hostnames). Look for the 'IDX' key in SERIES_META
+   for a test get the idx used here, but note that the idx assignment depends on
+   the exact arguments to the test.
+
+   This works by simply prepending 'ssh HOSTNAME' to the runner command, so it
+   relies on the same binaries being in the same places on both machines, and
+   won't work for all runners.
+
+   This option can be specified multiple times to have multiple runners run on
+   remote hosts.
 
 .. option:: -l LENGTH, --length=LENGTH
 
@@ -190,10 +220,14 @@ parsing input files.
 .. option:: --test-parameter=key=value
 
    Arbitrary test parameter in key=value format. Key will be case folded to
-   lower case. Some test configurations may alter behaviour based on values
-   passed as test parameters. Additionally, the values are stored with the
-   results metadata, and so can be used for arbitrary resultset categorisation.
-   Can be specified multiple times.
+   lower case. The values are stored with the results metadata, and so can be
+   used for storing arbitrary information relevant for a particular test run.
+
+   In addition to serving as simple metadata, the test parameters can also
+   affect the behaviour of some test configurations. See the :doc:`tests`
+   section for information on these.
+
+   This option can be specified multiple times to set multiple test parameters.
 
 .. option:: --swap-up-down
 
@@ -202,38 +236,55 @@ parsing input files.
    ``TCP_MAERTS`` and ``TCP_STREAM`` parameters, so only works for tests that employ
    these as their data transfer, and only for the TCP streams.
 
+.. option:: --socket-stats
+
+    Parse socket stats during test. This will capture and parse socket
+    statistics for all TCP upload flows during a test, adding TCP cwnd and RTT
+    values to the test data. Requires the 'ss' utility to be present on the
+    system, and can fail if there are too many simultaneous upload flows; which
+    is why this option is not enabled by default.
+
 Plot configuration options
 --------------------------
 
 These options are used to configure the appearance of plot output and only make
 sense combined with :option:`-f` *plot*.
 
-.. option:: -z, --zero-y
+.. option:: --label-x=LABEL
+.. option:: --label-y=LABEL
 
-   Always start y axis of plot at zero, instead of autoscaling the axis (also
-   disables log scales). Autoscaling is still enabled for the upper bound.
+   Override the figure axis labels. Can be specified twice, corresponding to
+   figures with multiple axes.
 
 .. option:: -I, --invert-latency-y
 
-   Invert the y-axis for latency data series (making plots show ’better values
-   upwards’).
+   Invert latency data series axis (typically the Y-axis), making plots show
+   ’better' values upwards.
 
-.. option:: --disable-log
+.. option:: -z, --zero-y
 
-   Disable log scales on plots.
+   Always start Y axis of plot at zero, instead of autoscaling the axis.
+   Autoscaling is still enabled for the upper bound. This also disables log
+   scale if enabled.
+
+.. option:: --log-scale={log2,log10}
+
+   Use the specified logarithmic scale on plots.
 
 .. option:: --norm-factor=FACTOR
 
-   Factor to normalise data by. I.e. divide all data points by this value. Can
-   be specified multiple times, in which case each value corresponds to a data
+   Data normalisation factor. Divide all data points by this value. Can be
+   specified multiple times, in which case each value corresponds to a data
    series.
 
-.. option:: --scale-data=SCALE_DATA
+.. option:: --bounds-x=BOUNDS
+.. option:: --bounds-y=BOUNDS
 
-   Additional data files to consider when scaling the plot axes (for plotting
-   several plots with identical axes). Note, this displays only the first data
-   set, but with axis scaling taking into account the additional data sets. Can
-   be supplied multiple times; see also :option:`--scale-mode`.
+   Specify bounds of the plot axes. If specifying one number, that will become
+   the upper bound. Specify two numbers separated by a comma to specify both
+   upper and lower bounds. To specify just the lower bound, add a comma
+   afterwards. Can be specified twice, corresponding to figures with multiple
+   axes.
 
 .. option:: -S, --scale-mode
 
@@ -260,6 +311,11 @@ sense combined with :option:`-f` *plot*.
    instead of combining them into one plot. This mode is not supported for all
    plot types, and only works when :option:`--scale-mode` is disabled.
 
+.. option:: --skip-missing-series
+
+   Skip missing series entirely from bar plots, instead of leaving an empty
+   space for it.
+
 .. option:: --no-print-n
 
    Do not print the number of data points on combined plots. When using plot
@@ -270,6 +326,10 @@ sense combined with :option:`-f` *plot*.
 .. option:: --no-annotation
 
    Exclude annotation with hostnames, time and test length from plots.
+
+.. option:: --figure-note=NOTE, --fig-note=NOTE
+
+   Add a note (arbitrary text) to the bottom-left of the figure.
 
 .. option:: --no-title
 
@@ -284,6 +344,10 @@ sense combined with :option:`-f` *plot*.
    aggregate plot from several data series. When this parameter is specified,
    :option:`--no-title` has no effect.
 
+.. option:: --no-labels
+
+   Hides tick labels from box and bar plots.
+
 .. option:: --no-markers
 
    Don’t use line markers to differentiate data series on plots.
@@ -292,16 +356,101 @@ sense combined with :option:`-f` *plot*.
 
    Exclude legend from plots.
 
+.. option:: --horizontal-legend
+
+   Place a horizontal legend below the plot instead of a vertical one next to
+   it. Doesn't always work well if there are too many items in the legend.
+
+.. option:: --legend-title=LEGEND_TITLE
+
+   Override legend title on plot.
+
+.. option:: --legend-placement=LEGEND_PLACEMENT
+
+   Control legend placement. Enabling this option will place the legend inside
+   the plot at the specified location. Can be one of 'best', 'upper right',
+   'upper left', 'lower left', 'lower right', 'right', 'center left', 'center
+   right', 'lower center', 'upper center' or 'center'.
+
+.. option:: --legend-columns=LEGEND_COLUMNS
+    Set the number of columns in the legend.
+
+.. option:: --reverse-legend
+
+   Reverse the order of items in the legend. This can be useful to make the
+   legend order match the data series in some cases.
+
 .. option:: --filter-legend
 
    Filter legend labels by removing the longest common substring from all
-   entries. This is not particularly smart, so should be used with care.
+   entries. This is not particularly smart, so use with care.
+
+.. option:: --replace-legend=src=dest
+
+   Replace 'src' with 'dst' in legends. Can be specified multiple times.
 
 .. option:: --filter-regexp=REGEXP
 
    Filter the plot legend by the supplied regular expression. Note that for
    combining several plot results, the regular expression is also applied before
    the grouping logic, meaning that a too wide filter can mess up the grouping.
+
+.. option:: --override-label=LABEL
+
+   Override dataset label. Can be specified multiple times when multiple
+   datasets are being plotted, in which case the order of labels corresponds to
+   the order of datasets.
+
+   Like :option:`--override-title`, this is applied *at the time of plotting*.
+
+.. option:: --filter-series=SERIES
+
+   Filter out specified series from plot. Can be specified multiple times.
+
+.. option:: --split-group=LABEL
+
+   Split data sets into groups when creating box plots. Specify this option
+   multiple times to define the new groups; the value of each option is the
+   group name.
+
+   Say you're plotting nine datasets which are really testing two variables with
+   three values each. In this case, it can be useful to have the box plot of the
+   results be split into three parts (corresponding to the values of one
+   variable) with each three boxes in each of them (corresponding to the values
+   of the second variable). This option makes this possible; simply specify it
+   three times with the labels to be used for the three groups.
+
+   A constraint on this option is that the number of datasets being plotted must
+   be divisible by the number of groups.
+
+.. option:: --colours=COLOURS
+
+   Comma-separated list of colours to be used for the plot colour cycle. Can be
+   specified in any format understood by matplotlib (including HTML hex values
+   prefixed with a #).
+
+   Yes, this option uses British spelling. No, American spelling is not
+   supported.
+
+.. option:: --override-colour-mode=MODE
+
+   Override colour_mode attribute. This changes the way colours are
+   assigned to bar plots. The default is 'groups' which assigns a separate
+   colour to each group of data series. The alternative is 'series' which
+   assigns a separate colour to each series, repeating them for each data
+   group.
+
+.. option:: --override-group-by=GROUP
+
+   Override the ``group_by`` setting for combination plots. This is useful to,
+   for instance, switch to splitting up combined data sets by batch run instead
+   of by file name.
+
+.. option:: --combine-save-dir=DIRNAME
+
+   When doing a combination plot save the intermediate data to ``DIRNAME``. This
+   can then be used for subsequent plotting to avoid having to load all the
+   source data files again on each plot.
 
 .. option:: --figure-width=FIG_WIDTH
 
@@ -317,10 +466,30 @@ sense combined with :option:`-f` *plot*.
 
    Figure DPI. Used when saving plots to raster format files.
 
+.. option:: --fallback-layout
+
+   Use the fallback layout engine (tight_layout built in to matplotlib). Use
+   this if text is cut off on saved figures. The downside to the fallback engine
+   is that the size of the figure (as specified by :option:`--figure-width` and
+   :option:`--figure-height`) is no longer kept constant.)
+
 .. option:: --no-matplotlibrc
 
    Don’t load included matplotlibrc values. Use this if autodetection of custom
    matplotlibrc fails and flent is inadvertently overriding rc values.
+
+.. option:: --no-hover-highlight
+
+   Don't highlight data series on hover in interactive plot views. Use this if
+   redrawing is too slow, or the highlighting is undesired for other reasons.
+
+.. option:: --scale-data=SCALE_DATA
+
+   Additional data files to consider when scaling the plot axes (for plotting
+   several plots with identical axes). Note, this displays only the first data
+   set, but with axis scaling taking into account the additional data sets. Can
+   be supplied multiple times; see also :option:`--scale-mode`.
+
 
 Test tool-related options
 -------------------------
@@ -336,6 +505,10 @@ Test tool-related options
    connection. This is useful to, for instance, to run the control server
    communication over a separate control network so as to not interfere with
    test traffic.
+
+   There is also a per-flow setting for this for tests that connect to multiple
+   hosts; see the `control_hosts` test parameter in :doc:`tests`. If both are
+   set, the per-flow setting takes precedence for those tests that use it.
 
 .. option:: --control-local-bind=IP
 
@@ -399,6 +572,18 @@ Misc and debugging options:
 .. option:: -V, --version
 
    Show Flent version information and exit.
+
+.. option:: -v, --verbose
+
+   Enable verbose logging to console.
+
+.. option:: -q, --quiet
+
+   Disable normal logging to console (and only log warnings and errors).
+
+.. option:: --debug-error
+
+   Print full exception backtraces to console.
 
 .. option:: -h, --help
 
